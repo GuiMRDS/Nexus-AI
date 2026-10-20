@@ -1,0 +1,4 @@
+plano,preco_brl,periodicidade,limite_membros,limite_projetos_ativos,exportacao_csv,suporte_primeira_resposta,observacoes
+Gratuito,0.00,por organização/mês,3,2,Não,Até 3 dias úteis,"Dados fictícios para demonstração; sem oferta comercial real"
+Pro,79.90,por organização/mês,20,Ilimitado,Sim,1 dia útil,"Dados fictícios para demonstração; sem oferta comercial real"
+Empresarial,249.90,por organização/mês,100,Ilimitado,Sim,Até 4 horas úteis,"Dados fictícios para demonstração; sem oferta comercial real"
