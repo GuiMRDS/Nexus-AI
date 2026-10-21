@@ -1,11 +1,27 @@
+
 from uuid import uuid4
 
+from pydantic import BaseModel, Field
 from langchain.agents import create_agent
 from langchain_groq import ChatGroq
 from langgraph.checkpoint.memory import InMemorySaver
 
 from my_models import GROQ_MODEL_OPENIA
 from my_keys import GROQ_API_KEY
+
+
+class AgentResponse(BaseModel):
+    resposta: str = Field(
+        description="Resposta em linguagem natural para o usuário."
+    )
+    fontes: list[str] = Field(
+        default_factory=list,
+        description="Fontes utilizadas para elaborar a resposta."
+    )
+    usou_rag: bool = Field(
+        default=False,
+        description="Indica se a resposta utilizou recuperação de documentos."
+    )
 
 
 def main() -> None:
@@ -21,6 +37,13 @@ def main() -> None:
         model=model,
         tools=[],
         checkpointer=checkpointer,
+        response_format=AgentResponse,
+        system_prompt=(
+            "Responda em português brasileiro. "
+            "Não invente fontes ou documentos consultados. "
+            "Como o RAG ainda não está implementado, "
+            "retorne fontes vazias e usou_rag como false."
+        ),
     )
 
     config = {
@@ -43,8 +66,10 @@ def main() -> None:
         config=config,
     )
 
-    print(f"\nPergunta: {question}")
-    print(f"Resposta: {result['messages'][-1].content}")
+    response: AgentResponse = result["structured_response"]
+
+    print("\nResposta JSON:")
+    print(response.model_dump_json(indent=2))
 
 
 if __name__ == "__main__":
