@@ -1,3 +1,5 @@
+
+
 def main() -> None:
     print("Hello from Nexus_IA!")
 
