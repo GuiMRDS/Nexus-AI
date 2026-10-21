@@ -1,52 +1,51 @@
+from uuid import uuid4
 
 from langchain.agents import create_agent
-from langchain_core.utils.uuid import uuid7
+from langchain_groq import ChatGroq
 from langgraph.checkpoint.memory import InMemorySaver
 
-from app.core.config import GROQ_API_KEY, GROQ_LLAMA
+from nexus_ai.my_models import GROQ_MODEL_LLAMA
+from nexus_ai.my_keys import GROQ_API_KEY
 
-# Disponibiliza a chave para a integração com Groq.
-# A integração LangChain normalmente também lê GROQ_API_KEY
-# diretamente das variáveis de ambiente.
 
-checkpointer = InMemorySaver()
+def main() -> None:
+    model = ChatGroq(
+        model=GROQ_MODEL_LLAMA,
+        api_key=GROQ_API_KEY,
+        temperature=0,
+    )
 
-agent = create_agent(
-    model=GROQ_LLAMA,
-    tools=[],
-    checkpointer=checkpointer,
-)
+    checkpointer = InMemorySaver()
 
-config = {
-    "configurable": {
-        "thread_id": str(uuid7())
+    agent = create_agent(
+        model=model,
+        tools=[],
+        checkpointer=checkpointer,
+    )
+
+    config = {
+        "configurable": {
+            "thread_id": str(uuid4())
+        }
     }
-}
 
-result = agent.invoke(
-    {
-        "messages": [
-            {
-                "role": "user",
-                "content": "O que é o Nexus_IA?"
-            }
-        ]
-    },
-    config=config,
-)
+    question = "Quem é o professor Gustavo Guanabara?"
 
-print("Resposta 1:", result["messages"][-1].content)
+    result = agent.invoke(
+        {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": question,
+                }
+            ]
+        },
+        config=config,
+    )
 
-result = agent.invoke(
-    {
-        "messages": [
-            {
-                "role": "user",
-                "content": "Quais são suas funcionalidades?"
-            }
-        ]
-    },
-    config=config,
-)
+    print(f"\nPergunta: {question}")
+    print(f"Resposta: {result['messages'][-1].content}")
 
-print("Resposta 2:", result["messages"][-1].content)
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,1 @@
+GROQ_MODEL_LLAMA = "llama-3.3-70b-versatile"

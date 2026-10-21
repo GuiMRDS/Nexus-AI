@@ -1,7 +1,7 @@
-
-
 def main() -> None:
-    print("Hello from Nexus_IA!")
+    from nexus_ai.agent import main as run_agent
+
+    run_agent()
 
 
 if __name__ == "__main__":

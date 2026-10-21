@@ -1,1 +1,0 @@
-GROQ_LLAMA = "groq:llama-3.3-70b-versatile"
