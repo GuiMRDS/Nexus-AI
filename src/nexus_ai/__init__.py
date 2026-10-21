@@ -1,2 +1,6 @@
 def main() -> None:
-    print("Hello from nexus-ai!")
+    print("Hello from Nexus_IA!")
+
+
+if __name__ == "__main__":
+    main()
