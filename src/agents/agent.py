@@ -4,13 +4,13 @@ from langchain.agents import create_agent
 from langchain_groq import ChatGroq
 from langgraph.checkpoint.memory import InMemorySaver
 
-from nexus_ai.my_models import GROQ_MODEL_LLAMA
-from nexus_ai.my_keys import GROQ_API_KEY
+from my_models import GROQ_MODEL_OPENIA
+from my_keys import GROQ_API_KEY
 
 
 def main() -> None:
     model = ChatGroq(
-        model=GROQ_MODEL_LLAMA,
+        model=GROQ_MODEL_OPENIA,
         api_key=GROQ_API_KEY,
         temperature=0,
     )
