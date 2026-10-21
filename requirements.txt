@@ -1,0 +1,46 @@
+
+# Nexus_IA - Requirements
+# Recomendado: Python 3.11 ou 3.12
+
+# API e configuracao
+fastapi
+uvicorn[standard]
+python-multipart
+pydantic
+pydantic-settings
+python-dotenv
+
+# LangChain e orquestracao
+langchain
+langchain-community
+langchain-groq
+langchain-huggingface
+langchain-text-splitters
+langgraph
+
+# Modelos e embeddings
+sentence-transformers
+transformers
+huggingface-hub
+
+# Banco vetorial
+chromadb
+langchain-chroma
+
+# Extracao de documentos
+pypdf
+python-docx
+openpyxl
+python-pptx
+pandas
+beautifulsoup4
+mistune
+
+# OCR para PDFs escaneados
+pytesseract
+pdf2image
+Pillow
+
+# Testes
+pytest
+httpx
