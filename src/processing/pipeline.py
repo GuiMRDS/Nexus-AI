@@ -3,11 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from nexus_ai.processing.chunking import create_chunks
-from nexus_ai.processing.cleaning import clean_text, remove_repeated_edge_lines
-from nexus_ai.processing.extractors import extract_document
-from nexus_ai.processing.metadata import build_document_metadata
-from nexus_ai.processing.models import DocumentChunk, ExtractedSection
+from processing.chunking import create_chunks
+from processing.cleaning import clean_text, remove_repeated_edge_lines
+from processing.extractors import extract_document
+from processing.metadata import build_document_metadata
+from processing.models import DocumentChunk, ExtractedSection
 
 
 def processar_documento(

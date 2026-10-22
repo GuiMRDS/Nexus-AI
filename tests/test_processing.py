@@ -2,9 +2,9 @@ from pathlib import Path
 
 import pytest
 
-from nexus_ai.processing.chunking import chunk_section
-from nexus_ai.processing.cleaning import clean_text, remove_repeated_edge_lines
-from nexus_ai.processing.models import ExtractedSection
+from processing.chunking import chunk_section
+from processing.cleaning import clean_text, remove_repeated_edge_lines
+from processing.models import ExtractedSection
 
 
 def test_clean_text_normalizes_whitespace_and_page_numbers():
