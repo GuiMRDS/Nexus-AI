@@ -6,7 +6,7 @@ from langchain_groq import ChatGroq
 from langgraph.checkpoint.memory import InMemorySaver
 
 from nexus_ai.config import get_groq_api_key
-from nexus_ai.my_models import GROQ_MODEL
+from my_models import GROQ_MODEL
 from nexus_ai.schemas import AgentResponse
 
 
