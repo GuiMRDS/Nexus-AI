@@ -1,17 +1,39 @@
 [project]
 name = "nexus-ai"
 version = "0.1.0"
-description = "Add your description here"
+description = "API de assistente inteligente do Nexus_IA, preparada para RAG."
 readme = "README.md"
+requires-python = ">=3.11"
 authors = [
-    { name = "Guilherme", email = "guimars22@gmail.com" }
+    { name = "Guilherme" }
 ]
-requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "langchain",
+    "langchain-groq",
+    "langgraph",
+    "pydantic",
+    "python-dotenv",
+]
 
 [project.scripts]
 nexus-ai = "nexus_ai:main"
 
 [build-system]
-requires = ["uv_build>=0.12.11,<0.13.0"]
-build-backend = "uv_build"
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["nexus_ai*", "agents*"]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "httpx",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

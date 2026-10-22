@@ -1,6 +1,6 @@
-
-# Nexus_IA - Requirements
-# Recomendado: Python 3.11 ou 3.12
+# Nexus_IA - dependências adicionais para o futuro RAG/OCR e testes.
+# Dependências básicas da API/agente são gerenciadas pelo pyproject.toml (uv sync).
+# Recomendado: Python 3.11 ou superior
 
 # API e configuracao
 fastapi
