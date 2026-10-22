@@ -1,0 +1,17 @@
+LICENSE
+README.md
+pyproject.toml
+src/agents/__init__.py
+src/agents/agent.py
+src/nexus_ai/__init__.py
+src/nexus_ai/api.py
+src/nexus_ai/config.py
+src/nexus_ai/schemas.py
+src/nexus_ai.egg-info/PKG-INFO
+src/nexus_ai.egg-info/SOURCES.txt
+src/nexus_ai.egg-info/dependency_links.txt
+src/nexus_ai.egg-info/entry_points.txt
+src/nexus_ai.egg-info/requires.txt
+src/nexus_ai.egg-info/top_level.txt
+tests/test_api.py
+tests/test_config.py
