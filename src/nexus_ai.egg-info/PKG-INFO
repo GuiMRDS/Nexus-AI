@@ -13,6 +13,14 @@ Requires-Dist: langchain-groq
 Requires-Dist: langgraph
 Requires-Dist: pydantic
 Requires-Dist: python-dotenv
+Requires-Dist: Pillow
+Requires-Dist: pytesseract
+Requires-Dist: pdf2image
+Requires-Dist: beautifulsoup4
+Requires-Dist: python-pptx
+Requires-Dist: openpyxl
+Requires-Dist: python-docx
+Requires-Dist: pypdf
 Dynamic: license-file
 
 # Nexus_IA — Documentação inicial do SaaS

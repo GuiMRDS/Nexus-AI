@@ -5,3 +5,11 @@ langchain-groq
 langgraph
 pydantic
 python-dotenv
+Pillow
+pytesseract
+pdf2image
+beautifulsoup4
+python-pptx
+openpyxl
+python-docx
+pypdf
