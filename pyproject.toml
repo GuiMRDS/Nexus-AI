@@ -34,7 +34,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["nexus_ai*", "agents*"]
+include = ["nexus_ai*", "agents*", "processing*"]
 
 [dependency-groups]
 dev = [

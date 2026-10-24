@@ -39,3 +39,15 @@ def test_chunking_respects_maximum_length():
 def test_chunking_rejects_invalid_maximum():
     with pytest.raises(ValueError):
         chunk_section(ExtractedSection("texto"), max_chars=1200)
+
+def test_storage_round_trip(tmp_path):
+    from processing.models import DocumentChunk
+    from processing.storage import load_chunks_jsonl, save_chunks_jsonl
+
+    original = [DocumentChunk(text="Conteúdo de teste", metadata={"source_file": "teste.md"})]
+    target = tmp_path / "chunks.jsonl"
+    save_chunks_jsonl(original, target)
+    loaded = load_chunks_jsonl(target)
+    assert len(loaded) == 1
+    assert loaded[0].text == "Conteúdo de teste"
+    assert loaded[0].metadata["source_file"] == "teste.md"

@@ -1,59 +1,56 @@
-from functools import lru_cache
-from uuid import uuid4
+from fastapi.testclient import TestClient
 
-from langchain.agents import create_agent
-from langchain_groq import ChatGroq
-from langgraph.checkpoint.memory import InMemorySaver
-
-from nexus_ai.config import get_groq_api_key
-from my_models import GROQ_MODEL
+from nexus_ai.api import app
 from nexus_ai.schemas import AgentResponse
+import nexus_ai.api as api_module
+
+client = TestClient(app)
 
 
-@lru_cache(maxsize=1)
-def get_agent():
-    """Cria o agente uma única vez por processo."""
-    model = ChatGroq(
-        model=GROQ_MODEL,
-        api_key=get_groq_api_key(),
-        temperature=0,
+def test_health_endpoint():
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok", "service": "nexus-ai"}
+
+
+def test_perguntar_resposta_valida(monkeypatch):
+    def fake_executar_agente(pergunta: str) -> AgentResponse:
+        assert pergunta == "Quais são os limites do plano Gratuito?"
+        return AgentResponse(
+            resposta="Resposta de teste.",
+            fontes=[],
+            usou_rag=False,
+        )
+
+    monkeypatch.setattr(api_module, "executar_agente", fake_executar_agente)
+    response = client.post(
+        "/api/v1/perguntar",
+        json={"pergunta": "Quais são os limites do plano Gratuito?"},
     )
-
-    return create_agent(
-        model=model,
-        tools=[],
-        checkpointer=InMemorySaver(),
-        response_format=AgentResponse,
-        system_prompt=(
-            "Responda sempre em português brasileiro. "
-            "Não invente fontes ou documentos consultados. "
-            "O RAG ainda não está implementado nesta versão; "
-            "retorne fontes vazias e usou_rag como false. "
-            "Se não souber uma informação, deixe isso claro."
-        ),
-    )
+    assert response.status_code == 200
+    assert response.json()["resposta"] == "Resposta de teste."
+    assert response.json()["fontes"] == []
+    assert response.json()["usou_rag"] is False
 
 
-def executar_agente(pergunta: str) -> AgentResponse:
-    """Executa o agente para uma pergunta e retorna a resposta validada."""
-    result = get_agent().invoke(
-        {"messages": [{"role": "user", "content": pergunta}]},
-        config={"configurable": {"thread_id": str(uuid4())}},
-    )
-    structured_response = result.get("structured_response")
-    if structured_response is None:
-        raise RuntimeError("O agente não retornou uma resposta estruturada.")
-    if isinstance(structured_response, AgentResponse):
-        return structured_response
-    return AgentResponse.model_validate(structured_response)
+def test_perguntar_rejeita_pergunta_vazia():
+    response = client.post("/api/v1/perguntar", json={"pergunta": "   "})
+    assert response.status_code == 422
 
 
-def main() -> None:
-    """Smoke test para executar o agente pelo comando `uv run nexus-ai`."""
-    pergunta = "Quem é o professor Gustavo Guanabara?"
-    resposta = executar_agente(pergunta)
-    print(resposta.model_dump_json(indent=2, ensure_ascii=False))
+def test_perguntar_trata_erro_de_configuracao(monkeypatch):
+    def fake_executar_agente(_pergunta: str):
+        raise ValueError("chave ausente")
+
+    monkeypatch.setattr(api_module, "executar_agente", fake_executar_agente)
+    response = client.post("/api/v1/perguntar", json={"pergunta": "Olá"})
+    assert response.status_code == 503
 
 
-if __name__ == "__main__":
-    main()
+def test_perguntar_trata_erro_do_provedor(monkeypatch):
+    def fake_executar_agente(_pergunta: str):
+        raise RuntimeError("erro interno de teste")
+
+    monkeypatch.setattr(api_module, "executar_agente", fake_executar_agente)
+    response = client.post("/api/v1/perguntar", json={"pergunta": "Olá"})
+    assert response.status_code == 502

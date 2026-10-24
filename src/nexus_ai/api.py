@@ -1,6 +1,5 @@
 from fastapi import FastAPI, HTTPException
 
-from agents.agent import executar_agente
 from nexus_ai.schemas import AgentResponse, AskRequest
 
 app = FastAPI(
@@ -11,6 +10,13 @@ app = FastAPI(
     ),
     version="0.1.0",
 )
+
+
+def executar_agente(pergunta: str) -> AgentResponse:
+    """Carrega o agente sob demanda para permitir testar a API sem inicializá-lo."""
+    from agents.agent import executar_agente as executar
+
+    return executar(pergunta)
 
 
 @app.get("/health", tags=["Sistema"])
