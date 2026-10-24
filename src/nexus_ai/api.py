@@ -5,8 +5,8 @@ from nexus_ai.schemas import AgentResponse, AskRequest
 app = FastAPI(
     title="Nexus_IA API",
     description=(
-        "API do assistente Nexus_IA. As respostas são estruturadas em JSON. "
-        "A recuperação de documentos (RAG) ainda não está habilitada."
+        "API do assistente Nexus_IA. Consulta a documentação local do produto "
+        "para responder perguntas sobre planos, funcionalidades, suporte e políticas."
     ),
     version="0.1.0",
 )
