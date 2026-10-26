@@ -26,6 +26,7 @@ huggingface-hub
 # Banco vetorial
 chromadb
 langchain-chroma
+sentence-transformers
 
 # Extracao de documentos
 pypdf

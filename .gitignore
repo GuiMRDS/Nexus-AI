@@ -1,7 +1,7 @@
-# Python bytecode e caches
+# Python
 __pycache__/
 *.py[cod]
-*$py.class
+*.egg-info/
 
 # Ambientes virtuais
 .venv/
@@ -13,12 +13,14 @@ env/
 .coverage
 htmlcov/
 
-# Empacotamento e metadados
-build/
-dist/
-*.egg-info/
+# Dados e índice vetorial gerados localmente
+data/vector_store/
+data/chunks.jsonl
 
-# Variáveis de ambiente e segredos locais
+# Modelos baixados localmente
+models/
+
+# Variáveis de ambiente e segredos
 .env
 .env.*
 !.env.example

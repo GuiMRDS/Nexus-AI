@@ -3,6 +3,7 @@ README.md
 pyproject.toml
 src/agents/__init__.py
 src/agents/agent.py
+src/agents/document_search.py
 src/nexus_ai/__init__.py
 src/nexus_ai/api.py
 src/nexus_ai/config.py
@@ -21,6 +22,12 @@ src/processing/metadata.py
 src/processing/models.py
 src/processing/pipeline.py
 src/processing/storage.py
+src/processing/store/embeddings.py
+src/processing/store/indexing.py
+src/processing/store/vector_store.py
 tests/test_api.py
 tests/test_config.py
+tests/test_document_search.py
+tests/test_embeddings.py
 tests/test_processing.py
+tests/test_vector_store.py

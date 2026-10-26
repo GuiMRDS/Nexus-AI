@@ -13,3 +13,5 @@ python-pptx
 openpyxl
 python-docx
 pypdf
+chromadb>=1.5.9
+sentence-transformers>=6.2.0
