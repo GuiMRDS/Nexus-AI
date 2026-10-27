@@ -61,9 +61,11 @@ Nexus-AI/
 │   │   ├── my_models.py
 │   │   └── ...
 │   └── processing/
+│       ├── retrieval.py
 │       └── store/
 │           ├── embeddings.py
 │           ├── indexing.py
+│           ├── reranker.py
 │           └── vector_store.py
 ├── tests/
 │   ├── test_api.py
@@ -71,6 +73,8 @@ Nexus-AI/
 │   ├── test_document_search.py
 │   ├── test_embeddings.py
 │   ├── test_processing.py
+│   ├── test_reranker.py
+│   ├── test_retrieval.py
 │   └── test_vector_store.py
 ├── pyproject.toml
 ├── uv.lock
@@ -108,6 +112,12 @@ Responsável pela integração com o ChromaDB e pelas operações de armazenamen
 ### 4.6. Indexação — `src/processing/store/indexing.py`
 
 Responsável pela lógica de indexação de documentos e pela preparação dos conteúdos para armazenamento vetorial.
+
+### 4.6.1. Camada de recuperação — `src/processing/retrieval.py` e `src/processing/store/reranker.py`
+
+Implementa o fluxo de recuperação do RAG: transforma a pergunta em embedding, busca os candidatos mais próximos no `VectorStore` (com filtro por metadados via `where`), reordena os candidatos com um cross-encoder (`Reranker`) e monta o bloco de contexto (`montar_contexto_vetorial`) com as fontes para o prompt do LLM.
+
+Ainda não é chamada automaticamente pelo agente (`src/agents/agent.py`), que continua usando a busca lexical de `document_search.py`. A integração faz parte de uma etapa seguinte.
 
 ### 4.7. Script de indexação — `scripts/index_documents.py`
 
@@ -237,19 +247,19 @@ uv run python scripts/index_documents.py
 uv run pytest
 ```
 
-Os testes abrangem componentes da API, configuração, busca documental, embeddings, processamento e armazenamento vetorial.
+Os testes abrangem componentes da API, configuração, busca documental, embeddings, reranqueamento, camada de recuperação, processamento e armazenamento vetorial.
 
 ### Estado mais recente dos testes
 
-Na última execução informada:
+Na última execução informada (2026-10-27):
 
-- 21 testes foram coletados.
-- 19 testes passaram.
-- 2 testes falharam em `tests/test_embeddings.py`.
+- 31 testes foram coletados.
+- 31 testes passaram.
+- 0 testes falharam.
 
-As falhas ocorreram porque o método `_encode()` chamou `.tolist()` sobre uma lista Python retornada pelo modelo falso utilizado nos testes.
+A falha anterior em `tests/test_embeddings.py` (`.tolist()` sobre uma lista Python do modelo falso) já foi corrigida em `src/processing/store/embeddings.py`, que agora aceita listas Python e arrays NumPy.
 
-A correção proposta foi tornar a conversão compatível com listas Python e arrays NumPy. A aprovação final depende de executar novamente a suíte após a alteração.
+Também foi corrigido um bug encontrado por teste manual do endpoint `/api/v1/perguntar`: `executar_agente` (`src/agents/agent.py`) sempre retornava `usou_rag: false`, mesmo quando a busca documental encontrava e usava trechos reais. Agora `usou_rag` reflete se houve fontes (`bool(source_paths)`).
 
 ## 10. Estado atual do desenvolvimento
 
@@ -257,28 +267,26 @@ A correção proposta foi tornar a conversão compatível com listas Python e ar
 
 - Busca local de documentos.
 - Pipeline de processamento e extração existente.
-- Integração inicial com embeddings.
-- Integração com ChromaDB.
+- Integração com embeddings e ChromaDB.
 - Script de indexação.
 - Indexação de 8 arquivos, com 86 chunks e nenhum erro na última execução informada.
-- Testes automatizados para os principais componentes.
+- Camada de recuperação (RAG) — `src/processing/retrieval.py`: busca semântica com filtro por metadados + reranqueamento via cross-encoder (`src/processing/store/reranker.py`) + montagem de contexto com fontes.
+- Testes automatizados para os principais componentes, todos passando (31/31).
 
 ### Em validação
 
-- Correção e aprovação integral dos testes de embeddings.
-- Consistência entre busca local e busca vetorial.
-- Integração completa entre recuperação de contexto e agente de IA.
+- Consistência entre busca local (lexical) e busca vetorial/reranqueada.
+- Integração da camada de recuperação (`Retriever`) com o agente de IA — ainda não chamada por `src/agents/agent.py`, que continua usando apenas a busca lexical de `document_search.py`.
 - Comportamento da API e tratamento de erros.
 
 ### Próximas etapas possíveis
 
-1. Executar novamente a suíte completa de testes.
-2. Validar consultas reais ao índice vetorial.
-3. Verificar a integração da recuperação de contexto com o agente.
-4. Validar os endpoints da API.
-5. Melhorar a documentação de instalação e exemplos de uso.
-6. Preparar a aplicação para implantação após validar o fluxo local.
-7. Avaliar melhorias arquiteturais conforme as necessidades reais do projeto.
+1. Integrar o `Retriever` (busca vetorial + reranqueamento) ao agente, substituindo ou complementando a busca lexical atual.
+2. Validar consultas reais ao índice vetorial e ao reranker com o modelo real (não apenas fakes nos testes).
+3. Validar os endpoints da API com a nova camada de recuperação.
+4. Melhorar a documentação de instalação e exemplos de uso.
+5. Preparar a aplicação para implantação após validar o fluxo local.
+6. Avaliar melhorias arquiteturais conforme as necessidades reais do projeto.
 
 Os itens futuros não devem ser considerados concluídos até serem implementados e verificados.
 

@@ -65,7 +65,9 @@ def executar_agente(pergunta: str) -> AgentResponse:
 
     # As fontes são determinadas pelo código a partir dos arquivos realmente consultados,
     # em vez de depender de o modelo inventar ou esquecer os caminhos.
-    return structured_response.model_copy(update={"fontes": source_paths, "usou_rag": False})
+    return structured_response.model_copy(
+        update={"fontes": source_paths, "usou_rag": bool(source_paths)}
+    )
 
 
 def main() -> None:

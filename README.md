@@ -128,6 +128,30 @@ resultados = vector_store.search(
 
 O filtro depende dos metadados efetivamente armazenados nos documentos indexados.
 
+## 🧭 Camada de recuperação (RAG)
+
+Além da busca vetorial direta, o `Retriever` (`src/processing/retrieval.py`) encapsula o fluxo completo de recuperação usado pelo RAG:
+
+1. Transforma a pergunta em embedding com o mesmo modelo usado na indexação.
+2. Busca os `candidate_limit` trechos mais próximos semanticamente no ChromaDB, já aplicando o filtro de metadados (`where`).
+3. Reordena os candidatos com um cross-encoder (`Reranker`, em `src/processing/store/reranker.py`), que avalia a pergunta completa junto de cada trecho.
+4. Devolve os `limit` trechos mais relevantes após o reranqueamento.
+
+```python
+from processing.retrieval import Retriever, montar_contexto_vetorial
+
+retriever = Retriever()
+passagens = retriever.retrieve(
+    "Quantos dias de férias eu tenho?",
+    limit=5,
+    candidate_limit=20,
+)
+
+contexto = montar_contexto_vetorial(passagens)
+```
+
+O modelo de reranqueamento padrão é o `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1` (multilíngue, inclui português) e pode ser trocado pela variável `NEXUS_RERANKER_MODEL`. Essa camada ainda não é chamada automaticamente pelo agente; a integração com a geração de resposta é um passo seguinte.
+
 ## 🗄️ Armazenamento
 
 Por padrão, o ChromaDB mantém o índice vetorial em:
@@ -143,6 +167,7 @@ data/vector_store/
 | `NEXUS_VECTOR_STORE_DIR`  | Diretório de persistência do índice    |
 | `NEXUS_VECTOR_COLLECTION` | Nome da coleção vetorial               |
 | `NEXUS_EMBEDDING_MODEL`   | Modelo utilizado para gerar embeddings |
+| `NEXUS_RERANKER_MODEL`    | Cross-encoder utilizado no reranqueamento da camada de recuperação |
 
 O diretório do índice é gerado localmente e não deve ser enviado ao Git.
 
