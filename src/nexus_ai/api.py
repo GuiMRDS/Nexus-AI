@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 
+from agents.formatting import formatar_resposta
 from nexus_ai.schemas import AgentResponse, AskRequest
 
 app = FastAPI(
@@ -32,9 +33,9 @@ def health() -> dict[str, str]:
     summary="Enviar uma pergunta ao Nexus_IA",
 )
 def perguntar(payload: AskRequest) -> AgentResponse:
-    """Executa o agente e devolve uma resposta JSON validada."""
+    """Executa o agente e devolve uma resposta JSON validada, formatada para o canal."""
     try:
-        return executar_agente(payload.pergunta)
+        response = executar_agente(payload.pergunta)
     except ValueError as exc:
         # Erros de configuração, como ausência de chave, são reportados sem
         # devolver detalhes internos da aplicação ao consumidor da API.
@@ -47,3 +48,7 @@ def perguntar(payload: AskRequest) -> AgentResponse:
             status_code=502,
             detail="Não foi possível obter uma resposta do serviço de IA.",
         ) from exc
+
+    return response.model_copy(
+        update={"resposta_formatada": formatar_resposta(response, payload.canal)}
+    )

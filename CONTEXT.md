@@ -55,11 +55,14 @@ Nexus-AI/
 ├── src/
 │   ├── agents/
 │   │   ├── agent.py
-│   │   └── document_search.py
+│   │   ├── contacts.py
+│   │   ├── document_search.py
+│   │   ├── formatting.py
+│   │   └── validation.py
 │   ├── nexus_ai/
 │   │   ├── api.py
 │   │   ├── config.py
-│   │   └── ...
+│   │   └── schemas.py
 │   └── processing/
 │       ├── retrieval.py
 │       └── store/
@@ -68,13 +71,17 @@ Nexus-AI/
 │           ├── reranker.py
 │           └── vector_store.py
 ├── tests/
+│   ├── test_agent.py
 │   ├── test_api.py
 │   ├── test_config.py
+│   ├── test_contacts_formatting.py
 │   ├── test_document_search.py
 │   ├── test_embeddings.py
+│   ├── test_indexing.py
 │   ├── test_processing.py
 │   ├── test_reranker.py
 │   ├── test_retrieval.py
+│   ├── test_validation.py
 │   └── test_vector_store.py
 ├── pyproject.toml
 ├── uv.lock
@@ -87,16 +94,19 @@ Nexus-AI/
 
 Contém os componentes relacionados aos agentes de IA e à busca documental.
 
-- `agent.py`: implementação do agente baseado em modelo de linguagem.
-- `document_search.py`: componente de busca local de documentos utilizado na recuperação de informações.
+- `agent.py`: orquestra recuperação (`Retriever`), limiar de relevância, geração pelo LLM, validação com uma nova tentativa e fallback (ver seção 7.1).
+- `validation.py`: controle de alucinação — `RespostaGerada` (saída estruturada do LLM), `filtrar_por_relevancia` e `validar_resposta`.
+- `contacts.py`: lê a tabela de `data/documents/07_contatos_areas.md`, usada no fallback.
+- `formatting.py`: formatação final por canal (`chat`, `email`, `texto`).
+- `document_search.py`: busca lexical antiga. Não é mais usada pelo agente; mantida com seus testes.
 
 ### 4.2. Aplicação — `src/nexus_ai/`
 
 Reúne componentes da aplicação, incluindo API, configurações e modelos de dados.
 
 - `api.py`: camada de API construída com FastAPI.
-- `config.py`: carrega o `.env` e expõe `get_groq_api_key()` e `get_groq_model()`.
-- `schemas.py`: modelos Pydantic de entrada e saída da API (`AskRequest`, `AgentResponse`).
+- `config.py`: carrega o `.env` e expõe `get_groq_api_key()`, `get_groq_model()` e `get_min_relevance()`.
+- `schemas.py`: modelos Pydantic de entrada e saída da API (`AskRequest` com `canal`, `AgentResponse`, `Fonte`).
 
 ### 4.3. Processamento — `src/processing/`
 
@@ -114,11 +124,14 @@ Responsável pela integração com o ChromaDB e pelas operações de armazenamen
 
 Responsável pela lógica de indexação de documentos e pela preparação dos conteúdos para armazenamento vetorial.
 
+- A categoria de cada documento vem da primeira subpasta em `data/documents/` (`suporte`, `comercial`, `produto`, `privacidade-legal`); arquivos na raiz ficam como `geral`.
+- Ao reindexar um arquivo, os trechos antigos dele são removidos antes da inserção, evitando conteúdo desatualizado no índice.
+
 ### 4.6.1. Camada de recuperação — `src/processing/retrieval.py` e `src/processing/store/reranker.py`
 
 Implementa o fluxo de recuperação do RAG: transforma a pergunta em embedding, busca os candidatos mais próximos no `VectorStore` (com filtro por metadados via `where`), reordena os candidatos com um cross-encoder (`Reranker`) e monta o bloco de contexto (`montar_contexto_vetorial`) com as fontes para o prompt do LLM.
 
-Ainda não é chamada automaticamente pelo agente (`src/agents/agent.py`), que continua usando a busca lexical de `document_search.py`. A integração faz parte de uma etapa seguinte.
+O contexto de cada trecho inclui arquivo, seção, localização (página/linhas/slide, quando houver), área e data de atualização. É a camada usada pelo agente.
 
 ### 4.7. Script de indexação — `scripts/index_documents.py`
 
@@ -152,13 +165,13 @@ O script apresenta um resumo da execução, incluindo o diretório processado, a
 
 ### Último resultado registrado
 
-Na última execução informada:
+Na última execução informada (2026-10-28):
 
 | Métrica              | Resultado |
 | -------------------- | --------: |
-| Arquivos encontrados |         8 |
-| Arquivos indexados   |         8 |
-| Chunks indexados     |        86 |
+| Arquivos encontrados |         9 |
+| Arquivos indexados   |         9 |
+| Chunks indexados     |        88 |
 | Erros de indexação   |         0 |
 
 Esses valores representam uma execução específica e podem variar conforme os documentos presentes no diretório.
@@ -189,6 +202,20 @@ A arquitetura prevê o uso de componentes de recuperação de informações para
 
 A recuperação documental e a geração de respostas devem permanecer responsabilidades distinguíveis, facilitando testes, manutenção e evolução.
 
+### 7.1. Geração e validação de respostas (parte 5)
+
+Fluxo de `executar_agente` (`src/agents/agent.py`):
+
+1. **Recuperação:** `Retriever.retrieve(pergunta, limit=5, candidate_limit=20)`.
+2. **Limiar de confiança:** `filtrar_por_relevancia` descarta trechos com score do reranker abaixo de `NEXUS_MIN_RELEVANCE` (padrão `-3.5`; o cross-encoder devolve logits). Sem nenhum trecho acima do limiar, o LLM **não é chamado** e o agente responde com o fallback.
+3. **Geração:** o LLM recebe pergunta + trechos numerados (`[Documento N]`) e é instruído a responder só com base neles. Saída estruturada `RespostaGerada`: `resposta`, `encontrou_resposta`, `documentos_citados`.
+4. **Validação de consistência** (`validar_resposta`, determinística): resposta afirmativa precisa citar documentos existentes, e todo número da resposta (preços, limites, prazos, datas) precisa aparecer nos documentos citados ou na pergunta. Se falhar, o LLM gera de novo **uma vez** recebendo os problemas; se falhar outra vez, vira fallback.
+5. **Citação:** as `fontes` (arquivo, seção, localização, área, atualizado_em) são montadas pelo código a partir dos metadados dos trechos citados — nunca do texto do modelo.
+6. **Fallback:** "Não encontrei essa informação nos documentos disponíveis.", aviso de possível fora de escopo e a lista de contatos das áreas lida de `data/documents/07_contatos_areas.md` (contatos demonstrativos, domínio `.example`). Também é usado quando o LLM marca `encontrou_resposta=false`.
+7. **Formatação:** a API devolve `resposta_formatada` conforme `canal` (`chat` = Markdown, `email`, `texto` para Teams/Slack sem Markdown): resumo direto seguido das referências.
+
+Calibração do limiar (2026-10-28, modelos reais): perguntas cobertas tiveram score máximo entre -3,04 e 10,3; perguntas fora do escopo entre -8,6 e -2,83. As faixas se sobrepõem levemente, então casos limítrofes chegam ao LLM, que é a segunda barreira (`encontrou_resposta=false`).
+
 ### Variáveis de ambiente
 
 As variáveis utilizadas durante o desenvolvimento são:
@@ -200,6 +227,7 @@ GROQ_MODEL=openai/gpt-oss-120b
 
 - `GROQ_API_KEY`: chave de acesso à API da Groq.
 - `GROQ_MODEL` (opcional): identificador do modelo na Groq. Se ausente ou vazio, usa `openai/gpt-oss-120b`.
+- `NEXUS_MIN_RELEVANCE` (opcional): score mínimo do reranker para um trecho virar contexto. Padrão `-3.5`.
 
 Os valores são ilustrativos. O nome do modelo e sua disponibilidade devem ser conferidos na configuração atual.
 
@@ -254,13 +282,15 @@ Os testes abrangem componentes da API, configuração, busca documental, embeddi
 
 Na última execução informada (2026-10-28):
 
-- 34 testes foram coletados.
-- 34 testes passaram.
+- 63 testes foram coletados.
+- 63 testes passaram.
 - 0 testes falharam.
 
 A falha anterior em `tests/test_embeddings.py` (`.tolist()` sobre uma lista Python do modelo falso) já foi corrigida em `src/processing/store/embeddings.py`, que agora aceita listas Python e arrays NumPy.
 
-Também foi corrigido um bug encontrado por teste manual do endpoint `/api/v1/perguntar`: `executar_agente` (`src/agents/agent.py`) sempre retornava `usou_rag: false`, mesmo quando a busca documental encontrava e usava trechos reais. Agora `usou_rag` reflete se houve fontes (`bool(source_paths)`).
+Também foi corrigido um bug encontrado por teste manual do endpoint `/api/v1/perguntar`: `executar_agente` (`src/agents/agent.py`) sempre retornava `usou_rag: false`, mesmo quando a busca documental encontrava e usava trechos reais. Agora `usou_rag` reflete se houve fontes.
+
+Validação manual de ponta a ponta (2026-10-28, modelos reais + Groq): perguntas cobertas (limites do Gratuito, preço do Pro, prazo de suporte, contato comercial, dados pessoais coletados) foram respondidas com fontes corretas; perguntas fora do escopo (férias, imposto de renda, capital da Austrália) caíram no fallback com os contatos das áreas.
 
 ## 10. Estado atual do desenvolvimento
 
@@ -270,21 +300,23 @@ Também foi corrigido um bug encontrado por teste manual do endpoint `/api/v1/pe
 - Pipeline de processamento e extração existente.
 - Integração com embeddings e ChromaDB.
 - Script de indexação.
-- Indexação de 8 arquivos, com 86 chunks e nenhum erro na última execução informada.
+- Indexação de 9 arquivos, com 88 chunks e nenhum erro na última execução informada.
 - Camada de recuperação (RAG) — `src/processing/retrieval.py`: busca semântica com filtro por metadados + reranqueamento via cross-encoder (`src/processing/store/reranker.py`) + montagem de contexto com fontes.
-- Testes automatizados para os principais componentes, todos passando (34/34).
+- Agente integrado ao `Retriever`, com limiar de relevância, validação de consistência, citação de fontes, fallback com contatos das áreas e formatação por canal (seção 7.1).
+- Testes automatizados para os principais componentes, todos passando (63/63).
 
 ### Em validação
 
-- Consistência entre busca local (lexical) e busca vetorial/reranqueada.
-- Integração da camada de recuperação (`Retriever`) com o agente de IA — ainda não chamada por `src/agents/agent.py`, que continua usando apenas a busca lexical de `document_search.py`.
+- Limiar de relevância calibrado com poucas perguntas; recalibrar com um conjunto de avaliação maior.
+- A validação numérica pode rejeitar respostas corretas que façam cálculos (ex.: diferença entre preços).
+- O FAQ está indexado em PDF e Markdown, o que duplica fontes (o próprio inventário recomenda indexar só um).
 - Comportamento da API e tratamento de erros.
 
 ### Próximas etapas possíveis
 
-1. Integrar o `Retriever` (busca vetorial + reranqueamento) ao agente, substituindo ou complementando a busca lexical atual.
-2. Validar consultas reais ao índice vetorial e ao reranker com o modelo real (não apenas fakes nos testes).
-3. Validar os endpoints da API com a nova camada de recuperação.
+1. Montar um conjunto de avaliação (perguntas + respostas esperadas) para medir acurácia e recalibrar o limiar.
+2. Decidir entre o PDF e o Markdown do FAQ para evitar fontes duplicadas.
+3. Validar os endpoints da API com a nova camada de geração e validação.
 4. Melhorar a documentação de instalação e exemplos de uso.
 5. Preparar a aplicação para implantação após validar o fluxo local.
 6. Avaliar melhorias arquiteturais conforme as necessidades reais do projeto.

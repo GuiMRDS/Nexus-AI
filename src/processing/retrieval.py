@@ -8,6 +8,14 @@ from typing import Any
 from processing.store.reranker import Reranker
 from processing.store.vector_store import VectorStore
 
+# Seções de Markdown/DOCX já são identificadas pelo título; por isso não entram aqui.
+LOCATION_LABELS = {
+    "page": "página",
+    "slide": "slide",
+    "sheet": "planilha",
+    "rows": "linhas",
+}
+
 
 @dataclass(slots=True)
 class RetrievedPassage:
@@ -29,6 +37,25 @@ class RetrievedPassage:
     @property
     def section(self) -> str:
         return str(self.metadata.get("section_title") or "Geral")
+
+    @property
+    def category(self) -> str:
+        return str(self.metadata.get("category") or "geral")
+
+    @property
+    def location(self) -> str | None:
+        """Localização legível dentro do arquivo (página, slide, linhas...)."""
+        value = self.metadata.get("location")
+        if value in (None, ""):
+            return None
+        label = LOCATION_LABELS.get(str(self.metadata.get("location_type")))
+        return f"{label} {value}" if label else None
+
+    @property
+    def updated_at(self) -> str | None:
+        """Data (AAAA-MM-DD) da última modificação do arquivo, quando disponível."""
+        value = self.metadata.get("file_modified_at")
+        return str(value)[:10] if value else None
 
 
 class Retriever:
@@ -102,9 +129,11 @@ def montar_contexto_vetorial(passages: list[RetrievedPassage]) -> str:
     blocks = []
     for index, passage in enumerate(passages, start=1):
         header = f"[Documento {index}]\nArquivo: {passage.source}\nSeção: {passage.section}"
-        updated_at = passage.metadata.get("file_modified_at")
-        if updated_at:
-            header += f"\nAtualizado em: {updated_at}"
+        if passage.location:
+            header += f"\nLocalização: {passage.location}"
+        header += f"\nÁrea: {passage.category}"
+        if passage.updated_at:
+            header += f"\nAtualizado em: {passage.updated_at}"
         blocks.append(f"{header}\nConteúdo:\n{passage.text}")
 
     return "\n\n---\n\n".join(blocks)

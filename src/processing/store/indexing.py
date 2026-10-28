@@ -46,7 +46,18 @@ def index_document(
             index,
         )
 
+    # Remove a versão anterior do arquivo para não deixar trechos desatualizados.
+    store.delete_by_source_path(file_path)
     return store.upsert_chunks(chunks)
+
+
+def category_from_path(path: str | Path, root: str | Path) -> str:
+    """Usa a primeira subpasta abaixo de `root` como categoria (ex.: suporte).
+
+    Arquivos diretamente na raiz ficam na categoria "geral".
+    """
+    relative = Path(path).relative_to(Path(root))
+    return relative.parts[0].lower() if len(relative.parts) > 1 else "geral"
 
 
 def index_directory(
@@ -93,6 +104,7 @@ def index_directory(
             count = index_document(
                 path,
                 vector_store=store,
+                category=category_from_path(path, root),
                 enable_ocr=enable_ocr,
             )
 

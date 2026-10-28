@@ -151,7 +151,42 @@ passagens = retriever.retrieve(
 contexto = montar_contexto_vetorial(passagens)
 ```
 
-O modelo de reranqueamento padrão é o `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1` (multilíngue, inclui português) e pode ser trocado pela variável `NEXUS_RERANKER_MODEL`. Essa camada ainda não é chamada automaticamente pelo agente; a integração com a geração de resposta é um passo seguinte.
+O modelo de reranqueamento padrão é o `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1` (multilíngue, inclui português) e pode ser trocado pela variável `NEXUS_RERANKER_MODEL`. Essa é a camada usada pelo agente, descrita a seguir.
+
+## ✅ Geração e validação de respostas
+
+O agente (`src/agents/agent.py`) responde somente com base nos trechos recuperados e sempre indica as fontes:
+
+1. **Limiar de confiança:** trechos com score do reranker abaixo de `NEXUS_MIN_RELEVANCE` (padrão `-3.5`) são descartados. Se nenhum sobrar, o LLM nem é chamado.
+2. **Geração:** o LLM recebe a pergunta e os trechos numerados (`[Documento N]`) e devolve a resposta, se encontrou a informação e quais documentos citou.
+3. **Validação de consistência:** a resposta precisa citar documentos existentes, e todo número dela (preços, limites, prazos) precisa aparecer nos documentos citados. Se falhar, o LLM gera de novo uma vez; se falhar outra vez, o agente usa o fallback.
+4. **Fontes:** montadas a partir dos metadados reais dos trechos — arquivo, seção, página/linhas, área e data de atualização.
+5. **Fallback:** "Não encontrei essa informação nos documentos disponíveis.", seguido dos contatos das áreas de `data/documents/07_contatos_areas.md`.
+6. **Formatação por canal:** a API devolve `resposta_formatada` para `chat` (Markdown), `email` ou `texto` (Teams/Slack sem Markdown).
+
+```bash
+curl -X POST http://localhost:8000/api/v1/perguntar \
+  -H "Content-Type: application/json" \
+  -d '{"pergunta": "Quanto custa o plano Pro?", "canal": "chat"}'
+```
+
+```json
+{
+  "resposta": "R$ 79,90 por organização/mês (valor fictício de demonstração).",
+  "fontes": [
+    {
+      "arquivo": "02_faq_suporte.md",
+      "secao": "Qual é o preço do plano Pro?",
+      "localizacao": null,
+      "area": "suporte",
+      "atualizado_em": "2026-10-21"
+    }
+  ],
+  "usou_rag": true,
+  "encontrou_resposta": true,
+  "resposta_formatada": "R$ 79,90 por organização/mês (valor fictício de demonstração).\n\n**Fontes**\n1. 02_faq_suporte.md — Qual é o preço do plano Pro? · atualizado em 2026-10-21"
+}
+```
 
 ## 🗄️ Armazenamento
 
@@ -169,6 +204,7 @@ data/vector_store/
 | `NEXUS_VECTOR_COLLECTION` | Nome da coleção vetorial               |
 | `NEXUS_EMBEDDING_MODEL`   | Modelo utilizado para gerar embeddings |
 | `NEXUS_RERANKER_MODEL`    | Cross-encoder utilizado no reranqueamento da camada de recuperação |
+| `NEXUS_MIN_RELEVANCE`     | Score mínimo do reranker para um trecho ser usado como contexto (padrão `-3.5`) |
 
 O diretório do índice é gerado localmente e não deve ser enviado ao Git.
 
@@ -188,9 +224,9 @@ pytest
 
 ## 🔗 Integração com o Nexus_IA
 
-Nesta etapa, a busca vetorial é disponibilizada como um componente independente. Ela não substitui automaticamente a busca lexical existente nem é integrada automaticamente ao agente ou à API.
+O agente e o endpoint `/api/v1/perguntar` usam a busca vetorial com reranqueamento. A busca lexical antiga (`src/agents/document_search.py`) continua no projeto, mas não é mais usada pelo agente.
 
-A integração das duas estratégias de recuperação pode ser realizada em uma etapa posterior.
+Ao indexar `data/documents/`, a primeira subpasta de cada arquivo vira a categoria (`suporte`, `comercial`, `produto`, `privacidade-legal`), e reindexar um arquivo substitui os trechos antigos dele.
 
 ## 📌 Observações
 

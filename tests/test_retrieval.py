@@ -141,5 +141,34 @@ def test_contexto_inclui_arquivo_secao_e_data():
 
     assert "politica_ferias.pdf" in contexto
     assert "Licença remunerada" in contexto
-    assert "2026-01-10T00:00:00+00:00" in contexto
+    assert "Atualizado em: 2026-01-10" in contexto
     assert "Conteúdo do trecho." in contexto
+
+
+def test_contexto_inclui_pagina_e_area():
+    passage = RetrievedPassage(
+        text="Prazo de resposta.",
+        metadata={
+            "source_file": "02_faq_suporte.pdf",
+            "category": "suporte",
+            "location_type": "page",
+            "location": 2,
+        },
+        vector_distance=0.2,
+        rerank_score=1.0,
+    )
+
+    contexto = montar_contexto_vetorial([passage])
+
+    assert "Localização: página 2" in contexto
+    assert "Área: suporte" in contexto
+
+
+def test_secao_markdown_nao_gera_localizacao_redundante():
+    passage = RetrievedPassage(
+        text="x",
+        metadata={"location_type": "section", "location": 3},
+        vector_distance=None,
+    )
+
+    assert passage.location is None
