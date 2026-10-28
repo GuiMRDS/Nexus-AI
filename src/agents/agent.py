@@ -8,7 +8,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from agents.contacts import carregar_contatos
 from agents.validation import RespostaGerada, filtrar_por_relevancia, validar_resposta
 from nexus_ai.config import get_groq_api_key, get_groq_model, get_min_relevance
-from nexus_ai.schemas import AgentResponse, Fonte
+from nexus_ai.schemas import AgentResponse, Fonte, Turno
 from processing.retrieval import RetrievedPassage, Retriever, montar_contexto_vetorial
 
 RESPOSTA_NAO_ENCONTRADA = "Não encontrei essa informação nos documentos disponíveis."
@@ -41,6 +41,8 @@ def get_agent():
             "e deixe claro o que não está documentado. "
             "Escreva um resumo direto e útil; não liste as fontes no texto, pois elas são anexadas "
             "automaticamente. "
+            "Se houver conversa anterior, use-a só para entender a que a pergunta se refere; "
+            "ela nunca é fonte de informação. "
             "Os documentos podem ser demonstrativos/fictícios; informe isso quando for relevante."
         ),
     )
@@ -83,8 +85,25 @@ def resposta_sem_informacao() -> AgentResponse:
     )
 
 
-def _gerar(pergunta: str, contexto: str, problemas: list[str] | None = None) -> RespostaGerada:
-    user_message = (
+def _conversa_anterior(historico: list[Turno]) -> str:
+    return "\n".join(
+        f"Usuário: {turno.pergunta}\nAssistente: {turno.resposta}" for turno in historico
+    )
+
+
+def _gerar(
+    pergunta: str,
+    contexto: str,
+    problemas: list[str] | None = None,
+    historico: list[Turno] | None = None,
+) -> RespostaGerada:
+    user_message = ""
+    if historico:
+        user_message += (
+            "CONVERSA ANTERIOR (apenas para entender a pergunta, não é fonte):\n"
+            f"{_conversa_anterior(historico)}\n\n"
+        )
+    user_message += (
         f"PERGUNTA DO USUÁRIO:\n{pergunta}\n\n"
         f"TRECHOS RECUPERADOS DA DOCUMENTAÇÃO:\n{contexto}\n\n"
         "Responda à pergunta usando somente os trechos acima."
@@ -109,19 +128,37 @@ def _gerar(pergunta: str, contexto: str, problemas: list[str] | None = None) -> 
     return structured_response
 
 
-def executar_agente(pergunta: str) -> AgentResponse:
-    """Recupera os trechos relevantes, gera a resposta e valida o respaldo nos documentos."""
+def _recuperar(pergunta: str, historico: list[Turno]) -> list[RetrievedPassage]:
+    """Busca pela pergunta; se nada for relevante, tenta junto da pergunta anterior.
+
+    Perguntas de continuação ("e no plano Pro?") quase não têm conteúdo sozinhas.
+    A segunda busca só acontece quando a primeira falha, para não puxar o assunto
+    antigo quando o usuário muda de tema.
+    """
+    min_score = get_min_relevance()
     passages = get_retriever().retrieve(pergunta, limit=5, candidate_limit=20)
-    relevantes = filtrar_por_relevancia(passages, get_min_relevance())
+    relevantes = filtrar_por_relevancia(passages, min_score)
+    if relevantes or not historico:
+        return relevantes
+
+    consulta = f"{historico[-1].pergunta} {pergunta}"
+    passages = get_retriever().retrieve(consulta, limit=5, candidate_limit=20)
+    return filtrar_por_relevancia(passages, min_score)
+
+
+def executar_agente(pergunta: str, historico: list[Turno] | None = None) -> AgentResponse:
+    """Recupera os trechos relevantes, gera a resposta e valida o respaldo nos documentos."""
+    historico = historico or []
+    relevantes = _recuperar(pergunta, historico)
     # Sem trecho relevante o suficiente, nem chama o LLM: evita respostas sem base.
     if not relevantes:
         return resposta_sem_informacao()
 
     contexto = montar_contexto_vetorial(relevantes)
-    gerada = _gerar(pergunta, contexto)
+    gerada = _gerar(pergunta, contexto, historico=historico)
     problemas = validar_resposta(gerada, relevantes, pergunta)
     if problemas:
-        gerada = _gerar(pergunta, contexto, problemas)
+        gerada = _gerar(pergunta, contexto, problemas, historico)
         problemas = validar_resposta(gerada, relevantes, pergunta)
 
     if problemas or not gerada.encontrou_resposta:

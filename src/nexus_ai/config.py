@@ -43,3 +43,18 @@ def get_min_relevance() -> float:
         return float(value)
     except ValueError as exc:
         raise ValueError("NEXUS_MIN_RELEVANCE deve ser um número.") from exc
+
+
+def get_sync_interval_minutes() -> float:
+    """Intervalo da sincronização automática de documentos dentro da API.
+
+    Configurável por NEXUS_SYNC_INTERVALO_MIN. Zero ou ausente desativa; nesse
+    caso a sincronização fica a cargo de scripts/sync_documents.py.
+    """
+    value = os.getenv("NEXUS_SYNC_INTERVALO_MIN", "").strip()
+    if not value:
+        return 0.0
+    try:
+        return max(float(value), 0.0)
+    except ValueError as exc:
+        raise ValueError("NEXUS_SYNC_INTERVALO_MIN deve ser um número.") from exc

@@ -1,0 +1,15 @@
+{"pergunta": "Quais são os limites do plano Gratuito?", "deve_responder": true, "esperado": ["3", "2"]}
+{"pergunta": "Quanto custa o plano Pro?", "deve_responder": true, "esperado": ["79,90"]}
+{"pergunta": "Qual o preço do plano Empresarial?", "deve_responder": true, "esperado": ["249,90"]}
+{"pergunta": "Quantos membros o plano Pro permite?", "deve_responder": true, "esperado": ["20"]}
+{"pergunta": "Quais planos têm projetos ilimitados?", "deve_responder": true, "esperado": ["Pro", "Empresarial"]}
+{"pergunta": "Posso exportar meus projetos para CSV no plano Gratuito?", "deve_responder": true, "esperado": ["Pro", "Empresarial"]}
+{"pergunta": "Qual é o prazo de primeira resposta do suporte no plano Empresarial?", "deve_responder": true, "esperado": ["4 horas"]}
+{"pergunta": "Em quantos dias posso pedir reembolso?", "deve_responder": true, "esperado": ["7"]}
+{"pergunta": "Qual é o e-mail do comercial?", "deve_responder": true, "esperado": ["comercial@nexus-ia.example"]}
+{"pergunta": "Quais perfis de acesso existem?", "deve_responder": true, "esperado": ["Administrador", "Membro"]}
+{"pergunta": "E quantos membros ele permite?", "deve_responder": true, "esperado": ["100"], "historico": [{"pergunta": "Quanto custa o plano Empresarial?", "resposta": "O plano Empresarial custa R$ 249,90 por organização/mês (valor fictício)."}]}
+{"pergunta": "Quantos dias de férias eu tenho por ano?", "deve_responder": false}
+{"pergunta": "Como calculo meu imposto de renda?", "deve_responder": false}
+{"pergunta": "Qual é a capital da Austrália?", "deve_responder": false}
+{"pergunta": "Qual o valor do vale-refeição da empresa?", "deve_responder": false}

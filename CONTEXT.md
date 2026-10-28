@@ -50,8 +50,15 @@ Nexus-AI/
 ├── data/
 │   ├── documents/
 │   └── vector_store/
+├── data/avaliacao/
+│   └── perguntas.jsonl          # conjunto de avaliação de modelos
+├── design-system/               # referências visuais da interface
 ├── scripts/
-│   └── index_documents.py
+│   ├── index_documents.py
+│   ├── sync_documents.py        # atualização incremental do índice
+│   ├── curadoria.py
+│   ├── relatorio_qualidade.py
+│   └── avaliar_modelos.py
 ├── src/
 │   ├── agents/
 │   │   ├── agent.py
@@ -59,18 +66,25 @@ Nexus-AI/
 │   │   ├── document_search.py
 │   │   ├── formatting.py
 │   │   └── validation.py
+│   ├── maintenance/
+│   │   ├── avaliacao.py
+│   │   └── curadoria.py
 │   ├── nexus_ai/
 │   │   ├── api.py
 │   │   ├── config.py
-│   │   └── schemas.py
+│   │   ├── monitoring.py
+│   │   ├── schemas.py
+│   │   └── web/                 # chat web (index.html, styles.css, app.js)
 │   └── processing/
 │       ├── retrieval.py
 │       └── store/
 │           ├── embeddings.py
 │           ├── indexing.py
 │           ├── reranker.py
+│           ├── sync.py
 │           └── vector_store.py
 ├── tests/
+│   ├── conftest.py
 │   ├── test_agent.py
 │   ├── test_api.py
 │   ├── test_config.py
@@ -78,9 +92,11 @@ Nexus-AI/
 │   ├── test_document_search.py
 │   ├── test_embeddings.py
 │   ├── test_indexing.py
+│   ├── test_maintenance.py
 │   ├── test_processing.py
 │   ├── test_reranker.py
 │   ├── test_retrieval.py
+│   ├── test_sync.py
 │   ├── test_validation.py
 │   └── test_vector_store.py
 ├── pyproject.toml
@@ -104,9 +120,17 @@ Contém os componentes relacionados aos agentes de IA e à busca documental.
 
 Reúne componentes da aplicação, incluindo API, configurações e modelos de dados.
 
-- `api.py`: camada de API construída com FastAPI.
-- `config.py`: carrega o `.env` e expõe `get_groq_api_key()`, `get_groq_model()` e `get_min_relevance()`.
-- `schemas.py`: modelos Pydantic de entrada e saída da API (`AskRequest` com `canal`, `AgentResponse`, `Fonte`).
+- `api.py`: FastAPI. Serve o chat web em `/` (arquivos em `web/`) e os endpoints `/api/v1/perguntar` (registra cada interação e devolve `interacao_id`), `/api/v1/feedback`, `/api/v1/metricas` e `/api/v1/curadoria`. Com `NEXUS_SYNC_INTERVALO_MIN > 0`, roda a sincronização de documentos em uma thread, usando o mesmo `VectorStore` do agente.
+- `config.py`: carrega o `.env` e expõe `get_groq_api_key()`, `get_groq_model()`, `get_min_relevance()` e `get_sync_interval_minutes()`.
+- `schemas.py`: modelos Pydantic (`AskRequest` com `canal` e `historico`, `Turno`, `AgentResponse` com `interacao_id`, `Fonte`, `FeedbackRequest`).
+- `monitoring.py`: `MonitoringStore` em SQLite (`data/monitoring/nexus.db`, fora do Git). Grava interações e feedback e calcula as métricas de qualidade. Falhas de registro nunca derrubam a resposta.
+- `web/`: chat em HTML/CSS/JS puros, sem build. Mostra que o interlocutor é um agente de IA, as fontes de cada resposta, o feedback 👍/👎 com motivos, o histórico da sessão (`sessionStorage`) e um painel de qualidade. O visual combina as quatro referências de `design-system/` (AETHEREAL, VITALIS, Monotone e KINETIC/ONYX).
+
+### 4.2.1. Manutenção — `src/maintenance/` e `src/processing/store/sync.py`
+
+- `sync.py`: `sync_directory` compara o hash de cada arquivo com um manifesto (`data/vector_store/manifest.json`). Reindexa só os arquivos novos ou alterados e remove do índice os arquivos apagados. Arquivos que falharem são tentados de novo na próxima execução.
+- `curadoria.py`: cruza `05_inventario_documental.csv` com os arquivos e aponta revisão vencida, status diferente de "Aprovado", arquivo alterado após a revisão e arquivo sem inventário.
+- `avaliacao.py`: roda `data/avaliacao/perguntas.jsonl` contra o agente e mede cobertura, conteúdo, respostas fora do escopo e latência. `candidato_aprovado` só aprova um modelo novo se ele não piorar nenhum desses indicadores.
 
 ### 4.3. Processamento — `src/processing/`
 
@@ -204,9 +228,9 @@ A recuperação documental e a geração de respostas devem permanecer responsab
 
 ### 7.1. Geração e validação de respostas (parte 5)
 
-Fluxo de `executar_agente` (`src/agents/agent.py`):
+Fluxo de `executar_agente(pergunta, historico)` (`src/agents/agent.py`):
 
-1. **Recuperação:** `Retriever.retrieve(pergunta, limit=5, candidate_limit=20)`.
+1. **Recuperação:** `Retriever.retrieve(pergunta, limit=5, candidate_limit=20)`. Se nenhum trecho passar do limiar e houver histórico, tenta de novo com a pergunta anterior concatenada à atual, o que cobre perguntas de continuação. O histórico (até 3 turnos) também entra no prompt, marcado como "não é fonte". A validação numérica continua aceitando só os números dos trechos e da pergunta atual.
 2. **Limiar de confiança:** `filtrar_por_relevancia` descarta trechos com score do reranker abaixo de `NEXUS_MIN_RELEVANCE` (padrão `-3.5`; o cross-encoder devolve logits). Sem nenhum trecho acima do limiar, o LLM **não é chamado** e o agente responde com o fallback.
 3. **Geração:** o LLM recebe pergunta + trechos numerados (`[Documento N]`) e é instruído a responder só com base neles. Saída estruturada `RespostaGerada`: `resposta`, `encontrou_resposta`, `documentos_citados`.
 4. **Validação de consistência** (`validar_resposta`, determinística): resposta afirmativa precisa citar documentos existentes, e todo número da resposta (preços, limites, prazos, datas) precisa aparecer nos documentos citados ou na pergunta. Se falhar, o LLM gera de novo **uma vez** recebendo os problemas; se falhar outra vez, vira fallback.
@@ -228,6 +252,10 @@ GROQ_MODEL=openai/gpt-oss-120b
 - `GROQ_API_KEY`: chave de acesso à API da Groq.
 - `GROQ_MODEL` (opcional): identificador do modelo na Groq. Se ausente ou vazio, usa `openai/gpt-oss-120b`.
 - `NEXUS_MIN_RELEVANCE` (opcional): score mínimo do reranker para um trecho virar contexto. Padrão `-3.5`.
+- `NEXUS_MONITORING_DB` (opcional): caminho do SQLite de monitoramento.
+- `NEXUS_SYNC_INTERVALO_MIN` (opcional): ativa a sincronização periódica dentro da API.
+- `NEXUS_DOCUMENTS_DIR` (opcional): pasta de documentos usada pela API.
+- `NEXUS_CURADORIA_PRAZO_DIAS` (opcional): prazo de revisão dos documentos (padrão 90).
 
 Os valores são ilustrativos. O nome do modelo e sua disponibilidade devem ser conferidos na configuração atual.
 
@@ -270,6 +298,23 @@ Coloque os documentos a serem processados nesse diretório, respeitando os forma
 uv run python scripts/index_documents.py
 ```
 
+### Subir a API e o chat web
+
+```powershell
+uv run uvicorn nexus_ai.api:app --host 0.0.0.0 --port 8000
+```
+
+O chat fica em `http://localhost:8000/`.
+
+### Rotinas de manutenção
+
+```powershell
+uv run python scripts/sync_documents.py            # uma vez; --intervalo 60 para repetir
+uv run python scripts/curadoria.py
+uv run python scripts/relatorio_qualidade.py --dias 30
+uv run python scripts/avaliar_modelos.py --modelos openai/gpt-oss-120b <candidato>
+```
+
 ### Executar a suíte de testes
 
 ```powershell
@@ -282,13 +327,17 @@ Os testes abrangem componentes da API, configuração, busca documental, embeddi
 
 Na última execução informada (2026-10-28):
 
-- 63 testes foram coletados.
-- 63 testes passaram.
+- 85 testes foram coletados.
+- 85 testes passaram.
 - 0 testes falharam.
+
+`tests/conftest.py` aponta `NEXUS_MONITORING_DB` para uma pasta temporária, então os testes nunca gravam em `data/monitoring/`.
 
 A falha anterior em `tests/test_embeddings.py` (`.tolist()` sobre uma lista Python do modelo falso) já foi corrigida em `src/processing/store/embeddings.py`, que agora aceita listas Python e arrays NumPy.
 
 Também foi corrigido um bug encontrado por teste manual do endpoint `/api/v1/perguntar`: `executar_agente` (`src/agents/agent.py`) sempre retornava `usou_rag: false`, mesmo quando a busca documental encontrava e usava trechos reais. Agora `usou_rag` reflete se houve fontes.
+
+Validação da interface e manutenção (2026-10-28, modelos reais + Groq): o chat em `/`, o histórico, o feedback e as métricas funcionaram de ponta a ponta. Com histórico, "E quantos membros ele permite?" depois de uma pergunta sobre o Empresarial foi respondida com "Até 100 membros". Sem histórico, o modelo cobriu Pro e Empresarial. A interface foi conferida por screenshot nos temas claro e escuro, em 1440px e em 390px. A primeira pergunta após subir a API leva cerca de 20 s (carregamento dos modelos); as seguintes, cerca de 2 s. `scripts/avaliar_modelos.py` ainda não foi executado contra a Groq.
 
 Validação manual de ponta a ponta (2026-10-28, modelos reais + Groq): perguntas cobertas (limites do Gratuito, preço do Pro, prazo de suporte, contato comercial, dados pessoais coletados) foram respondidas com fontes corretas; perguntas fora do escopo (férias, imposto de renda, capital da Austrália) caíram no fallback com os contatos das áreas.
 
@@ -303,7 +352,10 @@ Validação manual de ponta a ponta (2026-10-28, modelos reais + Groq): pergunta
 - Indexação de 9 arquivos, com 88 chunks e nenhum erro na última execução informada.
 - Camada de recuperação (RAG) — `src/processing/retrieval.py`: busca semântica com filtro por metadados + reranqueamento via cross-encoder (`src/processing/store/reranker.py`) + montagem de contexto com fontes.
 - Agente integrado ao `Retriever`, com limiar de relevância, validação de consistência, citação de fontes, fallback com contatos das áreas e formatação por canal (seção 7.1).
-- Testes automatizados para os principais componentes, todos passando (63/63).
+- Chat web (`/`) com indicação de agente de IA, fontes, feedback 👍/👎 com motivos, histórico de sessão e painel de qualidade.
+- Registro de interações e feedback em SQLite, com métricas em `/api/v1/metricas` e `scripts/relatorio_qualidade.py`.
+- Sincronização incremental de documentos (script ou thread na API), relatório de curadoria e avaliação comparativa de modelos.
+- Testes automatizados para os principais componentes, todos passando (85/85).
 
 ### Em validação
 
@@ -312,14 +364,16 @@ Validação manual de ponta a ponta (2026-10-28, modelos reais + Groq): pergunta
 - O FAQ está indexado em PDF e Markdown, o que duplica fontes (o próprio inventário recomenda indexar só um).
 - Comportamento da API e tratamento de erros.
 
+- Endpoints `/api/v1/metricas` e `/api/v1/curadoria` não têm autenticação e expõem perguntas dos colaboradores; em produção, precisam ficar atrás de rede interna ou proxy com login.
+- O conjunto `data/avaliacao/perguntas.jsonl` tem 15 casos; ainda não foi rodado contra a Groq.
+
 ### Próximas etapas possíveis
 
-1. Montar um conjunto de avaliação (perguntas + respostas esperadas) para medir acurácia e recalibrar o limiar.
+1. Rodar `scripts/avaliar_modelos.py` com o modelo atual para ter a linha de base e recalibrar o limiar.
 2. Decidir entre o PDF e o Markdown do FAQ para evitar fontes duplicadas.
-3. Validar os endpoints da API com a nova camada de geração e validação.
-4. Melhorar a documentação de instalação e exemplos de uso.
-5. Preparar a aplicação para implantação após validar o fluxo local.
-6. Avaliar melhorias arquiteturais conforme as necessidades reais do projeto.
+3. Proteger os endpoints de manutenção e preparar a implantação (servidor interno, HTTPS, agendamento da sincronização).
+4. Bot de Teams/Slack usando `canal: "texto"`, se a empresa trabalhar nessas ferramentas.
+5. Avaliar melhorias arquiteturais conforme as necessidades reais do projeto.
 
 Os itens futuros não devem ser considerados concluídos até serem implementados e verificados.
 

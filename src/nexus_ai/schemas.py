@@ -41,6 +41,21 @@ class AgentResponse(BaseModel):
         default="",
         description="Resposta pronta para exibição no canal solicitado, com as referências.",
     )
+    interacao_id: str | None = Field(
+        default=None,
+        description="Identificador da interação registrada, usado para enviar feedback.",
+    )
+
+
+# Turnos anteriores enviados ao agente; mais que isso só aumenta o prompt.
+MAX_TURNOS_HISTORICO = 3
+
+
+class Turno(BaseModel):
+    """Uma troca anterior da mesma sessão de conversa."""
+
+    pergunta: str = Field(max_length=4000)
+    resposta: str = Field(max_length=8000)
 
 
 class AskRequest(BaseModel):
@@ -56,6 +71,13 @@ class AskRequest(BaseModel):
         default="chat",
         description="Canal de exibição: chat (Markdown), email ou texto (Teams/Slack sem Markdown).",
     )
+    historico: list[Turno] = Field(
+        default_factory=list,
+        description=(
+            "Trocas anteriores da sessão, da mais antiga para a mais recente. "
+            f"Só as {MAX_TURNOS_HISTORICO} últimas são usadas."
+        ),
+    )
 
     @field_validator("pergunta")
     @classmethod
@@ -64,3 +86,23 @@ class AskRequest(BaseModel):
         if not value:
             raise ValueError("A pergunta não pode estar vazia.")
         return value
+
+    @field_validator("historico")
+    @classmethod
+    def manter_ultimos_turnos(cls, value: list[Turno]) -> list[Turno]:
+        return value[-MAX_TURNOS_HISTORICO:]
+
+
+Avaliacao = Literal["positivo", "negativo"]
+
+
+class FeedbackRequest(BaseModel):
+    """Avaliação do colaborador sobre uma resposta do agente."""
+
+    interacao_id: str = Field(min_length=1, max_length=64)
+    avaliacao: Avaliacao
+    motivo: str | None = Field(
+        default=None,
+        max_length=500,
+        description="Comentário opcional, geralmente enviado com avaliações negativas.",
+    )

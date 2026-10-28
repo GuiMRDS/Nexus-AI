@@ -188,6 +188,37 @@ curl -X POST http://localhost:8000/api/v1/perguntar \
 }
 ```
 
+## 💬 Interface web (chat)
+
+A API serve um chat web em `http://localhost:8000/`, sem build e sem dependências extras (HTML, CSS e JS em `src/nexus_ai/web/`):
+
+```bash
+uv run uvicorn nexus_ai.api:app --host 0.0.0.0 --port 8000
+```
+
+- **Indicação de IA:** selo "Agente de IA · não é uma pessoa" no topo, rótulo em cada resposta e aviso no campo de pergunta.
+- **Fontes:** cada resposta lista os documentos usados (arquivo, seção, página/linhas, área e data de atualização).
+- **Feedback:** 👍/👎 em cada resposta; no 👎, motivos rápidos (incorreta, incompleta, fonte errada…) e comentário opcional.
+- **Histórico da sessão:** a conversa fica salva na aba (`sessionStorage`). As 3 últimas trocas respondidas vão no campo `historico` de `/api/v1/perguntar`, então perguntas de continuação ("e quantos membros ele permite?") funcionam.
+- **Painel de qualidade:** métricas, lacunas na base, respostas mal avaliadas e pendências de curadoria.
+- Tema claro/escuro e layout para celular. O visual combina as referências de `design-system/`.
+
+Para Teams ou Slack, o mesmo endpoint já devolve `resposta_formatada` com `canal: "texto"`.
+
+## 🔧 Manutenção contínua
+
+| Rotina | Comando | O que faz |
+| --- | --- | --- |
+| Atualização de documentos | `uv run python scripts/sync_documents.py` | Reindexa só os arquivos novos ou alterados (hash em `data/vector_store/manifest.json`) e remove do índice os arquivos apagados. `--intervalo 60` repete a cada 60 min; sem a opção, roda uma vez (para cron/Agendador de Tarefas). |
+| Sincronização dentro da API | `NEXUS_SYNC_INTERVALO_MIN=60` | Faz o mesmo em segundo plano no processo da API, usando o mesmo índice que responde as perguntas. |
+| Curadoria de conteúdo | `uv run python scripts/curadoria.py` | Cruza `05_inventario_documental.csv` com os arquivos e lista, por responsável, revisões vencidas (`NEXUS_CURADORIA_PRAZO_DIAS`, padrão 90), documentos em rascunho, arquivos alterados após a revisão e arquivos sem inventário. Termina com código 1 quando há pendências. |
+| Monitoramento de qualidade | `uv run python scripts/relatorio_qualidade.py` | Taxa de perguntas sem resposta, feedback negativo, tempo médio/p95, perguntas recorrentes sem resposta e respostas mal avaliadas. Também em `GET /api/v1/metricas`. |
+| Atualização do modelo | `uv run python scripts/avaliar_modelos.py --modelos <atual> <candidato>` | Roda `data/avaliacao/perguntas.jsonl` com cada modelo e só recomenda trocar se o candidato não piorar cobertura, conteúdo nem respostas fora do escopo. |
+
+Cada pergunta feita à API é registrada em SQLite (`data/monitoring/nexus.db`, fora do Git) com a resposta, as fontes, o tempo e o feedback. **Esse arquivo contém as perguntas dos colaboradores**, e `/api/v1/metricas` as expõe sem autenticação: em produção, restrinja o acesso a esses endpoints (rede interna, proxy com login).
+
+Ciclo de melhoria: perguntas recorrentes no painel em "Lacunas na base" indicam documentos que faltam. Respostas mal avaliadas indicam ajustes no prompt, na recuperação ou no conteúdo.
+
 ## 🗄️ Armazenamento
 
 Por padrão, o ChromaDB mantém o índice vetorial em:
@@ -205,6 +236,10 @@ data/vector_store/
 | `NEXUS_EMBEDDING_MODEL`   | Modelo utilizado para gerar embeddings |
 | `NEXUS_RERANKER_MODEL`    | Cross-encoder utilizado no reranqueamento da camada de recuperação |
 | `NEXUS_MIN_RELEVANCE`     | Score mínimo do reranker para um trecho ser usado como contexto (padrão `-3.5`) |
+| `NEXUS_MONITORING_DB`     | Banco SQLite de interações e feedback (padrão `data/monitoring/nexus.db`) |
+| `NEXUS_SYNC_INTERVALO_MIN`| Intervalo, em minutos, da sincronização automática dentro da API (padrão desativado) |
+| `NEXUS_DOCUMENTS_DIR`     | Pasta de documentos usada pela sincronização e pela curadoria na API (padrão `data/documents`) |
+| `NEXUS_CURADORIA_PRAZO_DIAS` | Dias até uma revisão de documento vencer (padrão `90`) |
 
 O diretório do índice é gerado localmente e não deve ser enviado ao Git.
 

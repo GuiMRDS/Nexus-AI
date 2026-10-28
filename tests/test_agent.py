@@ -132,3 +132,58 @@ def test_resposta_invalida_duas_vezes_vira_fallback(configurar):
 
     assert response.encontrou_resposta is False
     assert "999" not in response.resposta
+
+
+class RetrieverPorConsulta:
+    """Só encontra trechos quando a consulta contém o termo esperado."""
+
+    def __init__(self, termo, passages):
+        self.termo = termo
+        self.passages = passages
+        self.consultas = []
+
+    def retrieve(self, query, *, limit=5, candidate_limit=20, where=None):
+        self.consultas.append(query)
+        return self.passages if self.termo in query else []
+
+
+def test_pergunta_de_continuacao_usa_a_pergunta_anterior_na_busca(configurar, monkeypatch):
+    from nexus_ai.schemas import Turno
+
+    fake_agent = configurar(
+        [],
+        RespostaGerada(resposta="Até 100 membros.", encontrou_resposta=True, documentos_citados=[1]),
+    )
+    retriever = RetrieverPorConsulta(
+        "Empresarial", [passage("O plano Empresarial permite até 100 membros.", 5.0)]
+    )
+    monkeypatch.setattr(agent_module, "get_retriever", lambda: retriever)
+    historico = [Turno(pergunta="Quanto custa o plano Empresarial?", resposta="R$ 249,90.")]
+
+    response = agent_module.executar_agente("E quantos membros ele permite?", historico)
+
+    assert response.encontrou_resposta is True
+    assert retriever.consultas == [
+        "E quantos membros ele permite?",
+        "Quanto custa o plano Empresarial? E quantos membros ele permite?",
+    ]
+    assert "CONVERSA ANTERIOR" in fake_agent.mensagens[0]
+    assert "Quanto custa o plano Empresarial?" in fake_agent.mensagens[0]
+
+
+def test_historico_nao_e_usado_na_busca_quando_a_pergunta_basta(configurar, monkeypatch):
+    from nexus_ai.schemas import Turno
+
+    configurar(
+        [],
+        RespostaGerada(resposta="R$ 79,90.", encontrou_resposta=True, documentos_citados=[1]),
+    )
+    retriever = RetrieverPorConsulta("Pro", [passage("O plano Pro custa 79,90.", 5.0)])
+    monkeypatch.setattr(agent_module, "get_retriever", lambda: retriever)
+
+    agent_module.executar_agente(
+        "Quanto custa o plano Pro?",
+        [Turno(pergunta="Quais perfis existem?", resposta="Administrador e Membro.")],
+    )
+
+    assert retriever.consultas == ["Quanto custa o plano Pro?"]

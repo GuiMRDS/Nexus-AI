@@ -17,6 +17,10 @@ htmlcov/
 data/vector_store/
 data/chunks.jsonl
 
+# Monitoramento (perguntas dos colaboradores) e resultados de avaliação
+data/monitoring/
+data/avaliacao/resultados/
+
 # Modelos baixados localmente
 models/
 

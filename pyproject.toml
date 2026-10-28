@@ -1,7 +1,7 @@
 [project]
 name = "nexus-ai"
 version = "0.1.0"
-description = "API de assistente inteligente do Nexus_IA, preparada para RAG."
+description = "Assistente de IA com RAG sobre a documentação do Nexus_IA: API, chat web e rotinas de manutenção."
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [
@@ -36,7 +36,10 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["nexus_ai*", "agents*", "processing*"]
+include = ["nexus_ai*", "agents*", "processing*", "maintenance*"]
+
+[tool.setuptools.package-data]
+nexus_ai = ["web/*"]
 
 [dependency-groups]
 dev = [

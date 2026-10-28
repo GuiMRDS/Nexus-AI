@@ -54,3 +54,15 @@ def test_min_relevance_invalido(monkeypatch):
     monkeypatch.setenv("NEXUS_MIN_RELEVANCE", "alto")
     with pytest.raises(ValueError, match="NEXUS_MIN_RELEVANCE"):
         get_min_relevance()
+
+
+def test_sync_interval_desativado_por_padrao(monkeypatch):
+    from nexus_ai.config import get_sync_interval_minutes
+
+    monkeypatch.delenv("NEXUS_SYNC_INTERVALO_MIN", raising=False)
+    assert get_sync_interval_minutes() == 0.0
+    monkeypatch.setenv("NEXUS_SYNC_INTERVALO_MIN", "15")
+    assert get_sync_interval_minutes() == 15.0
+    monkeypatch.setenv("NEXUS_SYNC_INTERVALO_MIN", "abc")
+    with pytest.raises(ValueError):
+        get_sync_interval_minutes()
