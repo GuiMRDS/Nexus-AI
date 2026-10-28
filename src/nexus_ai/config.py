@@ -14,3 +14,11 @@ def get_groq_api_key() -> str:
             "GROQ_API_KEY não encontrada. Configure essa variável no arquivo .env."
         )
     return api_key.strip()
+
+DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b"
+
+
+def get_groq_model() -> str:
+    """Retorna o modelo da Groq definido em GROQ_MODEL ou o modelo padrão."""
+    model = os.getenv("GROQ_MODEL", "").strip()
+    return model or DEFAULT_GROQ_MODEL

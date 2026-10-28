@@ -58,7 +58,7 @@ Nexus-AI/
 │   │   └── document_search.py
 │   ├── nexus_ai/
 │   │   ├── api.py
-│   │   ├── my_models.py
+│   │   ├── config.py
 │   │   └── ...
 │   └── processing/
 │       ├── retrieval.py
@@ -95,7 +95,8 @@ Contém os componentes relacionados aos agentes de IA e à busca documental.
 Reúne componentes da aplicação, incluindo API, configurações e modelos de dados.
 
 - `api.py`: camada de API construída com FastAPI.
-- `my_models.py`: configurações ou definições de modelos utilizados pelo projeto, conforme a implementação atual.
+- `config.py`: carrega o `.env` e expõe `get_groq_api_key()` e `get_groq_model()`.
+- `schemas.py`: modelos Pydantic de entrada e saída da API (`AskRequest`, `AgentResponse`).
 
 ### 4.3. Processamento — `src/processing/`
 
@@ -194,11 +195,11 @@ As variáveis utilizadas durante o desenvolvimento são:
 
 ```dotenv
 GROQ_API_KEY=sua_chave_aqui
-GROQ_MODEL_LLAMA=modelo_configurado_no_projeto
+GROQ_MODEL=openai/gpt-oss-120b
 ```
 
 - `GROQ_API_KEY`: chave de acesso à API da Groq.
-- `GROQ_MODEL_LLAMA`: identificador do modelo configurado na aplicação.
+- `GROQ_MODEL` (opcional): identificador do modelo na Groq. Se ausente ou vazio, usa `openai/gpt-oss-120b`.
 
 Os valores são ilustrativos. O nome do modelo e sua disponibilidade devem ser conferidos na configuração atual.
 
@@ -251,10 +252,10 @@ Os testes abrangem componentes da API, configuração, busca documental, embeddi
 
 ### Estado mais recente dos testes
 
-Na última execução informada (2026-10-27):
+Na última execução informada (2026-10-28):
 
-- 31 testes foram coletados.
-- 31 testes passaram.
+- 34 testes foram coletados.
+- 34 testes passaram.
 - 0 testes falharam.
 
 A falha anterior em `tests/test_embeddings.py` (`.tolist()` sobre uma lista Python do modelo falso) já foi corrigida em `src/processing/store/embeddings.py`, que agora aceita listas Python e arrays NumPy.
@@ -271,7 +272,7 @@ Também foi corrigido um bug encontrado por teste manual do endpoint `/api/v1/pe
 - Script de indexação.
 - Indexação de 8 arquivos, com 86 chunks e nenhum erro na última execução informada.
 - Camada de recuperação (RAG) — `src/processing/retrieval.py`: busca semântica com filtro por metadados + reranqueamento via cross-encoder (`src/processing/store/reranker.py`) + montagem de contexto com fontes.
-- Testes automatizados para os principais componentes, todos passando (31/31).
+- Testes automatizados para os principais componentes, todos passando (34/34).
 
 ### Em validação
 

@@ -26,9 +26,10 @@ Esta etapa adiciona a indexação vetorial ao Nexus_IA, permitindo transformar t
 src/
 └── processing/
     ├── __init__.py
-    ├── embeddings.py
-    ├── indexing.py
-    └── vector_store.py
+    └── store/
+        ├── embeddings.py
+        ├── indexing.py
+        └── vector_store.py
 
 scripts/
 └── index_documents.py
@@ -101,7 +102,7 @@ O comando apresenta um resumo com os arquivos encontrados, os arquivos indexados
 ## 🔎 Exemplo de busca semântica
 
 ```python
-from processing.vector_store import VectorStore
+from processing.store.vector_store import VectorStore
 
 vector_store = VectorStore()
 

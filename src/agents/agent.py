@@ -6,8 +6,7 @@ from langchain_groq import ChatGroq
 from langgraph.checkpoint.memory import InMemorySaver
 
 from agents.document_search import buscar_documentacao, montar_contexto_documental
-from nexus_ai.config import get_groq_api_key
-from my_models import GROQ_MODEL
+from nexus_ai.config import get_groq_api_key, get_groq_model
 from nexus_ai.schemas import AgentResponse
 
 
@@ -15,7 +14,7 @@ from nexus_ai.schemas import AgentResponse
 def get_agent():
     """Cria o agente uma única vez por processo."""
     model = ChatGroq(
-        model=GROQ_MODEL,
+        model=get_groq_model(),
         api_key=get_groq_api_key(),
         temperature=0,
     )
