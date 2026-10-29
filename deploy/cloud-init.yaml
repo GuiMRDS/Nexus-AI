@@ -1,0 +1,13 @@
+#cloud-config
+# Cole no campo "cloud-init script" ao criar a VM
+# (imagem Canonical Ubuntu 24.04, shape VM.Standard.A1.Flex).
+# Instala o Docker com o plugin Compose e libera as portas 80/443:
+# as imagens Ubuntu da OCI bloqueiam tudo além da 22 no iptables do próprio SO.
+runcmd:
+  - curl -fsSL https://get.docker.com | sh
+  - systemctl enable --now docker
+  - usermod -aG docker ubuntu
+  - iptables -I INPUT 6 -p tcp -m state --state NEW --dport 80 -j ACCEPT
+  - iptables -I INPUT 6 -p tcp -m state --state NEW --dport 443 -j ACCEPT
+  - netfilter-persistent save
+  - install -d -o ubuntu -g ubuntu /home/ubuntu/nexus-ai

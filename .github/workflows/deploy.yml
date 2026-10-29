@@ -1,0 +1,124 @@
+# CI/CD do Nexus-AI na OCI:
+#   testes -> imagem arm64 no OCIR + documentos no Object Storage -> deploy na VM.
+# Em pull requests, só os testes rodam. Configuração em deploy/README.md.
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE: ${{ vars.OCIR_REGISTRY }}/${{ vars.OCIR_NAMESPACE }}/nexus-ai
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.13.6"
+      - run: uv sync --frozen --extra oci
+      - run: uv run pytest
+
+  imagem:
+    needs: testes
+    if: github.event_name != 'pull_request'
+    # Runner ARM nativo: a VM Ampere A1 é arm64 e emular o build seria lento.
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.OCIR_REGISTRY }}
+          # Formato completo, ex.: <namespace>/<usuario> ou <namespace>/<dominio>/<usuario>.
+          username: ${{ secrets.OCIR_USERNAME }}
+          password: ${{ secrets.OCIR_AUTH_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ github.sha }}
+            ${{ env.IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  documentos:
+    needs: testes
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configurar OCI CLI
+        env:
+          OCI_USER: ${{ secrets.OCI_USER_OCID }}
+          OCI_TENANCY: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_KEY: ${{ secrets.OCI_PRIVATE_KEY }}
+          OCI_REGION: ${{ vars.OCI_REGION }}
+        run: |
+          pip install --quiet oci-cli
+          mkdir -p ~/.oci
+          printf '%s\n' "$OCI_KEY" > ~/.oci/key.pem
+          chmod 600 ~/.oci/key.pem
+          cat > ~/.oci/config <<EOF
+          [DEFAULT]
+          user=$OCI_USER
+          tenancy=$OCI_TENANCY
+          fingerprint=$OCI_FINGERPRINT
+          region=$OCI_REGION
+          key_file=~/.oci/key.pem
+          EOF
+          chmod 600 ~/.oci/config
+      # Só envia o que mudou e apaga do bucket o que saiu do repositório. A API
+      # baixa as mudanças e reindexa na próxima sincronização (NEXUS_SYNC_INTERVALO_MIN).
+      - name: Sincronizar data/documents com o bucket
+        run: |
+          oci os object sync \
+            --bucket-name "${{ vars.OCI_DOCUMENTS_BUCKET }}" \
+            --src-dir data/documents \
+            --delete
+
+  deploy:
+    needs: [imagem, documentos]
+    runs-on: ubuntu-latest
+    environment: producao
+    steps:
+      - uses: actions/checkout@v4
+      - name: Copiar compose e Caddyfile para a VM
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ubuntu
+          key: ${{ secrets.VM_SSH_KEY }}
+          source: deploy/compose.yaml,deploy/Caddyfile
+          target: nexus-ai
+          strip_components: 1
+      - name: Atualizar o container
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ubuntu
+          key: ${{ secrets.VM_SSH_KEY }}
+          script: |
+            set -e
+            cd ~/nexus-ai
+            sed -i "s|^NEXUS_IMAGE=.*|NEXUS_IMAGE=${{ env.IMAGE }}:${{ github.sha }}|" .env
+            docker compose pull api
+            docker compose up -d --remove-orphans
+            docker image prune -f
+            for i in $(seq 1 30); do
+              docker compose exec -T api python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)" && exit 0
+              sleep 5
+            done
+            docker compose logs --tail 100 api
+            exit 1

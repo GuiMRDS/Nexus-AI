@@ -256,6 +256,9 @@ GROQ_MODEL=openai/gpt-oss-120b
 - `NEXUS_SYNC_INTERVALO_MIN` (opcional): ativa a sincronização periódica dentro da API.
 - `NEXUS_DOCUMENTS_DIR` (opcional): pasta de documentos usada pela API.
 - `NEXUS_CURADORIA_PRAZO_DIAS` (opcional): prazo de revisão dos documentos (padrão 90).
+- `NEXUS_GROQ_SECRET_OCID` (deploy): OCID do segredo da chave da Groq no OCI Vault, usado quando `GROQ_API_KEY` não está definida.
+- `NEXUS_DOCUMENTS_BUCKET` / `NEXUS_DOCUMENTS_PREFIX` (deploy): bucket do Object Storage espelhado em `NEXUS_DOCUMENTS_DIR` antes de cada sincronização. Arquivos locais ausentes no bucket são apagados.
+- `NEXUS_OCI_AUTH` (deploy): `config` usa `~/.oci/config`; o padrão é *instance principal*.
 
 Os valores são ilustrativos. O nome do modelo e sua disponibilidade devem ser conferidos na configuração atual.
 
@@ -341,6 +344,16 @@ Validação da interface e manutenção (2026-10-28, modelos reais + Groq): o ch
 
 Validação manual de ponta a ponta (2026-10-28, modelos reais + Groq): perguntas cobertas (limites do Gratuito, preço do Pro, prazo de suporte, contato comercial, dados pessoais coletados) foram respondidas com fontes corretas; perguntas fora do escopo (férias, imposto de renda, capital da Austrália) caíram no fallback com os contatos das áreas.
 
+## 9.1. Deploy na OCI
+
+Guia completo em `deploy/README.md`. Resumo:
+
+- `Dockerfile`: imagem arm64 com Python 3.13, PyTorch só CPU (índice `pytorch-cpu` do `pyproject.toml`, aplicado só no Linux), Tesseract e os dois modelos já baixados. O código roda de `/app/src` e os dados ficam no volume `/app/data`.
+- Compute: VM Ampere A1 (Always Free) com `deploy/compose.yaml` (API + Caddy com HTTPS e login nas rotas de manutenção).
+- `src/nexus_ai/oci_cloud.py`: lê o segredo do OCI Vault e espelha o bucket do Object Storage, por *instance principal*. O SDK `oci` é o extra opcional `oci`.
+- CI/CD: `.github/workflows/deploy.yml` (testes → imagem no OCIR → `oci os object sync` dos documentos → deploy por SSH → health check).
+- Estado: os arquivos foram criados e os testes passam, mas o build da imagem e o deploy ainda **não** foram executados (não há Docker nem OCI CLI na máquina de desenvolvimento).
+
 ## 10. Estado atual do desenvolvimento
 
 ### Implementado ou executado com sucesso
@@ -355,7 +368,8 @@ Validação manual de ponta a ponta (2026-10-28, modelos reais + Groq): pergunta
 - Chat web (`/`) com indicação de agente de IA, fontes, feedback 👍/👎 com motivos, histórico de sessão e painel de qualidade.
 - Registro de interações e feedback em SQLite, com métricas em `/api/v1/metricas` e `scripts/relatorio_qualidade.py`.
 - Sincronização incremental de documentos (script ou thread na API), relatório de curadoria e avaliação comparativa de modelos.
-- Testes automatizados para os principais componentes, todos passando (85/85).
+- Testes automatizados para os principais componentes, todos passando (93/93 em 2026-10-29, incluindo `tests/test_oci_cloud.py`).
+- Artefatos de deploy na OCI (seção 9.1), ainda não executados na nuvem.
 
 ### Em validação
 

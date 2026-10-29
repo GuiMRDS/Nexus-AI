@@ -1,0 +1,12 @@
+# HTTPS automático (Let's Encrypt) na frente da API.
+{$NEXUS_DOMAIN} {
+	encode zstd gzip
+
+	# Métricas e curadoria expõem as perguntas dos colaboradores: exigem login.
+	@manutencao path /api/v1/metricas* /api/v1/curadoria* /docs* /redoc* /openapi.json
+	basic_auth @manutencao {
+		{$NEXUS_ADMIN_USER} {$NEXUS_ADMIN_HASH}
+	}
+
+	reverse_proxy api:8000
+}

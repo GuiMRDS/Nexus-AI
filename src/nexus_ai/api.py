@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from agents.formatting import formatar_resposta
-from nexus_ai.config import get_groq_model, get_sync_interval_minutes
+from nexus_ai.config import get_documents_bucket, get_groq_model, get_sync_interval_minutes
 from nexus_ai.monitoring import MonitoringStore
 from nexus_ai.schemas import AgentResponse, AskRequest, FeedbackRequest, Turno
 
@@ -28,6 +28,14 @@ def _sincronizar_periodicamente(intervalo_min: float, parar: threading.Event) ->
 
     while not parar.is_set():
         try:
+            origem = get_documents_bucket()
+            if origem:
+                from nexus_ai.oci_cloud import baixar_documentos
+
+                bucket, prefixo = origem
+                baixados = baixar_documentos(bucket, DOCUMENTS_DIR, prefixo)
+                if baixados["baixados"] or baixados["removidos"]:
+                    logger.info("Documentos do Object Storage: %s", baixados)
             resumo = sync_directory(DOCUMENTS_DIR, vector_store=get_retriever().vector_store)
             mudancas = len(resumo["added"]) + len(resumo["updated"]) + len(resumo["removed"])
             if mudancas or resumo["errors"]:

@@ -1,0 +1,39 @@
+# Roda na VM da OCI, em ~/nexus-ai, junto com Caddyfile e .env (ver deploy/README.md).
+services:
+  api:
+    image: ${NEXUS_IMAGE:?defina NEXUS_IMAGE no .env}
+    restart: unless-stopped
+    environment:
+      # Só OCIDs e nomes: a chave da Groq é lida do OCI Vault pela própria aplicação.
+      NEXUS_GROQ_SECRET_OCID: ${NEXUS_GROQ_SECRET_OCID:?defina NEXUS_GROQ_SECRET_OCID no .env}
+      NEXUS_DOCUMENTS_BUCKET: ${NEXUS_DOCUMENTS_BUCKET:?defina NEXUS_DOCUMENTS_BUCKET no .env}
+      NEXUS_DOCUMENTS_PREFIX: ${NEXUS_DOCUMENTS_PREFIX:-}
+      NEXUS_SYNC_INTERVALO_MIN: ${NEXUS_SYNC_INTERVALO_MIN:-15}
+      GROQ_MODEL: ${GROQ_MODEL:-}
+      NEXUS_MIN_RELEVANCE: ${NEXUS_MIN_RELEVANCE:-}
+    volumes:
+      - nexus-data:/app/data
+    expose:
+      - "8000"
+
+  caddy:
+    image: caddy:2.10.2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      NEXUS_DOMAIN: ${NEXUS_DOMAIN:?defina NEXUS_DOMAIN no .env}
+      NEXUS_ADMIN_USER: ${NEXUS_ADMIN_USER:?defina NEXUS_ADMIN_USER no .env}
+      NEXUS_ADMIN_HASH: ${NEXUS_ADMIN_HASH:?defina NEXUS_ADMIN_HASH no .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - api
+
+volumes:
+  nexus-data:
+  caddy-data:
+  caddy-config:

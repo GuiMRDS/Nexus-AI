@@ -1,4 +1,5 @@
 import os
+from functools import lru_cache
 
 from dotenv import load_dotenv
 
@@ -6,14 +7,33 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+@lru_cache(maxsize=4)
+def _segredo_do_vault(secret_ocid: str) -> str:
+    from nexus_ai.oci_cloud import ler_segredo
+
+    return ler_segredo(secret_ocid)
+
+
 def get_groq_api_key() -> str:
-    """Retorna a chave da Groq ou lança erro se ela não estiver configurada."""
+    """Retorna a chave da Groq ou lança erro se ela não estiver configurada.
+
+    Localmente, vem de GROQ_API_KEY (.env). Na OCI, NEXUS_GROQ_SECRET_OCID aponta
+    para o segredo no OCI Vault, e a chave nunca fica em variável de ambiente.
+    """
     api_key = os.getenv("GROQ_API_KEY")
-    if not api_key or not api_key.strip():
-        raise ValueError(
-            "GROQ_API_KEY não encontrada. Configure essa variável no arquivo .env."
-        )
-    return api_key.strip()
+    if api_key and api_key.strip():
+        return api_key.strip()
+
+    secret_ocid = os.getenv("NEXUS_GROQ_SECRET_OCID", "").strip()
+    if secret_ocid:
+        api_key = _segredo_do_vault(secret_ocid)
+        if api_key:
+            return api_key
+        raise ValueError("O segredo da Groq no OCI Vault está vazio.")
+
+    raise ValueError(
+        "GROQ_API_KEY não encontrada. Configure essa variável no arquivo .env."
+    )
 
 DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b"
 
@@ -58,3 +78,15 @@ def get_sync_interval_minutes() -> float:
         return max(float(value), 0.0)
     except ValueError as exc:
         raise ValueError("NEXUS_SYNC_INTERVALO_MIN deve ser um número.") from exc
+
+
+def get_documents_bucket() -> tuple[str, str] | None:
+    """Bucket do OCI Object Storage com os documentos originais e o prefixo.
+
+    Configurável por NEXUS_DOCUMENTS_BUCKET e NEXUS_DOCUMENTS_PREFIX. Ausente,
+    a sincronização usa só a pasta local.
+    """
+    bucket = os.getenv("NEXUS_DOCUMENTS_BUCKET", "").strip()
+    if not bucket:
+        return None
+    return bucket, os.getenv("NEXUS_DOCUMENTS_PREFIX", "").strip()

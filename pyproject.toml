@@ -25,7 +25,13 @@ dependencies = [
     "pypdf",
     "chromadb>=1.5.9",
     "sentence-transformers>=6.2.0",
+    # Declarado direto só para o uv aplicar o índice CPU abaixo.
+    "torch",
 ]
+
+[project.optional-dependencies]
+# Vault e Object Storage, usados no deploy na OCI.
+oci = ["oci"]
 
 [project.scripts]
 nexus-ai = "nexus_ai:main"
@@ -46,6 +52,16 @@ dev = [
     "pytest",
     "httpx",
 ]
+
+# No Linux (container e CI), o PyTorch vem só com CPU: sem os pacotes CUDA,
+# que deixariam a imagem com vários GB a mais.
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

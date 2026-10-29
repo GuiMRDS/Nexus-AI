@@ -219,6 +219,10 @@ Cada pergunta feita à API é registrada em SQLite (`data/monitoring/nexus.db`, 
 
 Ciclo de melhoria: perguntas recorrentes no painel em "Lacunas na base" indicam documentos que faltam. Respostas mal avaliadas indicam ajustes no prompt, na recuperação ou no conteúdo.
 
+## ☁️ Deploy na Oracle Cloud (OCI)
+
+Imagem Docker no OCI Container Registry, VM Ampere A1 (Always Free) com Docker Compose e Caddy (HTTPS), documentos no OCI Object Storage, chave da Groq no OCI Vault e CI/CD com GitHub Actions. Passo a passo em [`deploy/README.md`](deploy/README.md).
+
 ## 🗄️ Armazenamento
 
 Por padrão, o ChromaDB mantém o índice vetorial em:

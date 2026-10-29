@@ -1,0 +1,14 @@
+.git
+.github
+.venv
+.pytest_cache
+**/__pycache__
+*.egg-info
+.env
+.env.*
+# Documentos vêm do Object Storage; índice e monitoramento ficam no volume.
+data
+deploy
+tests
+scripts
+*.md
